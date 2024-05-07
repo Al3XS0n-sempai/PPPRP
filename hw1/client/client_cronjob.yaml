@@ -1,0 +1,61 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: local-persistent-volume
+spec:
+  accessModes:
+    - ReadWriteOnce
+  capacity:
+    storage: 1Gi
+  hostPath:
+    path: /persistent_volume/data
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: client-app-storage-claim
+  labels:
+    app: client-app
+spec:
+  storageClassName: ""
+  accessModes:
+   - ReadWriteOnce
+  volumeName: local-persistent-volume
+  resources:
+   requests:
+    storage: 500Mi
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: client-app
+spec:
+  schedule: "* * * * *"
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: client-app
+        spec:
+          containers:
+          - name: client-app
+            image: client-image
+            imagePullPolicy: Never
+            env:
+            - name: SERVER_HOST
+              value: "server-app-service.default.svc.cluster.local"
+            - name: SERVER_PORT
+              value: "80"
+            resources:
+              limits:
+                memory: "128Mi"
+                cpu: "500m"
+            volumeMounts:
+            - name: local-storage
+              mountPath: /data/client_data
+          restartPolicy: Never
+          volumes:
+          - name: local-storage
+            persistentVolumeClaim:
+              claimName: client-app-storage-claim
